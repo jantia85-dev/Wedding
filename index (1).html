@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boda Julián &amp; Victoria — Tablero</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#1f2b22; --paper:#f6f3ea; --line:#c9c2a8;
+    --cana:#5a7247; --cana-deep:#3c4f31; --clay:#a8562f; --danger:#9c3b2e; --ok:#4b6b3a;
+    font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 16px 60px;}
+  header.top{display:flex;flex-direction:column;gap:2px;border-bottom:2px solid var(--cana-deep);padding-bottom:14px;margin-bottom:16px;}
+  .eyebrow{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:.14em;color:var(--cana-deep);text-transform:uppercase;}
+  h1{margin:2px 0 4px;font-size:28px;font-weight:400;}
+  .sub{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#5c5847;}
+  .countdown{margin-top:10px;display:flex;align-items:baseline;gap:8px;}
+  .countdown .num{font-size:40px;color:var(--clay);line-height:1;}
+  .countdown .label{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#5c5847;}
+  nav.tabs{display:flex;gap:2px;margin-bottom:18px;border-bottom:1px solid var(--line);font-family:'Helvetica Neue',Arial,sans-serif;overflow-x:auto;}
+  nav.tabs button{background:none;border:none;padding:9px 12px;font-size:13px;color:#6b6754;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  nav.tabs button.active{color:var(--cana-deep);border-bottom-color:var(--clay);font-weight:600;}
+  section.panel{display:none;} section.panel.active{display:block;}
+  .card{background:#fffdf7;border:1px solid var(--line);border-radius:3px;padding:14px 16px;margin-bottom:12px;}
+  .card h2{font-size:15px;margin:0 0 10px;font-weight:600;color:var(--cana-deep);font-family:'Helvetica Neue',Arial,sans-serif;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .stat{font-family:'Helvetica Neue',Arial,sans-serif;}
+  .stat .v{font-size:20px;} .stat .k{font-size:11px;color:#7a755f;}
+  .stat.warn .v{color:var(--danger);} .stat.good .v{color:var(--ok);}
+  input,select{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;border:1px solid var(--line);border-radius:2px;padding:5px 6px;background:#fff;}
+  label{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:#5c5847;display:block;margin-bottom:2px;}
+  table{width:100%;border-collapse:collapse;font-family:'Helvetica Neue',Arial,sans-serif;font-size:12.5px;}
+  th{text-align:left;font-size:10.5px;color:#7a755f;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line);padding:5px 4px;}
+  td{border-bottom:1px solid #ece6d3;padding:6px 4px;vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td input, td select{width:100%;}
+  button.action{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;background:var(--cana-deep);color:#fdfcf6;border:none;padding:7px 12px;border-radius:2px;cursor:pointer;}
+  button.action.ghost{background:none;color:var(--cana-deep);border:1px solid var(--cana-deep);}
+  button.small{font-size:11px;padding:3px 8px;}
+  .row-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .phase{margin-bottom:10px;} .phase h3{font-size:12.5px;margin:0 0 4px;color:var(--clay);font-family:'Helvetica Neue',Arial,sans-serif;font-weight:600;}
+  .task{display:flex;align-items:center;gap:8px;font-family:'Helvetica Neue',Arial,sans-serif;font-size:12.5px;padding:3px 0;}
+  .task input[type=checkbox]{width:auto;}
+  .task.done span{text-decoration:line-through;color:#9a9580;}
+  .note{font-size:11.5px;color:#7a755f;font-family:'Helvetica Neue',Arial,sans-serif;margin-top:6px;}
+  .save-msg{font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;color:var(--ok);height:14px;}
+  .loading{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#7a755f;padding:30px 0;text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Tablero de boda</div>
+    <h1>Julián &amp; Victoria</h1>
+    <div class="sub" id="lugar-sub">Cargando…</div>
+    <div class="countdown"><div class="num" id="cd-days">—</div><div class="label">días para la boda</div></div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="resumen" class="active">Resumen</button>
+    <button data-tab="presupuesto">Presupuesto</button>
+    <button data-tab="invitados">Invitados</button>
+    <button data-tab="cronograma">Cronograma</button>
+    <button data-tab="cotizaciones">Cotizaciones</button>
+  </nav>
+
+  <div id="loading" class="loading">Cargando datos…</div>
+
+  <div id="app" style="display:none">
+    <section class="panel active" id="tab-resumen">
+      <div class="card">
+        <h2>Estado general</h2>
+        <div class="grid2">
+          <div class="stat"><div class="v" id="r-presupuesto">—</div><div class="k">Presupuesto máximo</div></div>
+          <div class="stat"><div class="v" id="r-contratado">—</div><div class="k">Valor contratado</div></div>
+          <div class="stat"><div class="v" id="r-pagado">—</div><div class="k">Pagado</div></div>
+          <div class="stat" id="r-saldo-wrap"><div class="v" id="r-saldo">—</div><div class="k">Saldo disponible real</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Invitados</h2>
+        <div class="grid2">
+          <div class="stat"><div class="v" id="r-inv-julian">—</div><div class="k">Lado Julián</div></div>
+          <div class="stat"><div class="v" id="r-inv-victoria">—</div><div class="k">Lado Victoria</div></div>
+        </div>
+        <div class="note">Meta acordada: 40–45 por lado (80–90 total).</div>
+      </div>
+      <div class="card">
+        <h2>Decisiones pendientes</h2>
+        <table><tbody id="r-pendientes"></tbody></table>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-presupuesto">
+      <div class="card">
+        <h2>Presupuesto máximo</h2>
+        <label>Tope en COP</label>
+        <input type="number" id="p-max" step="100000">
+      </div>
+      <div class="card">
+        <h2>Partidas</h2>
+        <table>
+          <thead><tr><th>Ítem</th><th>Categoría</th><th>Estado</th><th>Valor</th><th>Pagado</th><th></th></tr></thead>
+          <tbody id="p-tabla"></tbody>
+        </table>
+        <div class="row-actions"><button class="action" id="p-add">+ Agregar partida</button></div>
+      </div>
+      <div class="card">
+        <h2>Resultado</h2>
+        <div class="grid2">
+          <div class="stat"><div class="v" id="p-contratado">—</div><div class="k">Valor contratado</div></div>
+          <div class="stat"><div class="v" id="p-pagado">—</div><div class="k">Pagado</div></div>
+          <div class="stat"><div class="v" id="p-reserva">—</div><div class="k">Reserva imprevistos (5%)</div></div>
+          <div class="stat" id="p-saldo-wrap"><div class="v" id="p-saldo">—</div><div class="k">Saldo disponible real</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-invitados">
+      <div class="card">
+        <h2>Lado Julián <span style="font-weight:400" id="i-jul-count"></span></h2>
+        <table><thead><tr><th>Nombre</th><th>Grupo</th><th>Prioridad</th><th>Confirmado</th><th></th></tr></thead><tbody id="i-julian"></tbody></table>
+        <div class="row-actions"><button class="action small" id="i-add-julian">+ Invitado</button></div>
+      </div>
+      <div class="card">
+        <h2>Lado Victoria <span style="font-weight:400" id="i-vic-count"></span></h2>
+        <table><thead><tr><th>Nombre</th><th>Grupo</th><th>Prioridad</th><th>Confirmado</th><th></th></tr></thead><tbody id="i-victoria"></tbody></table>
+        <div class="row-actions"><button class="action small" id="i-add-victoria">+ Invitado</button></div>
+      </div>
+      <div class="note">Prioridad: Esencial / Ampliada / Opcional / Espera. Meta: 40–45 por lado.</div>
+    </section>
+
+    <section class="panel" id="tab-cronograma">
+      <div class="card"><h2>Cronograma regresivo</h2><div id="cronograma-fases"></div></div>
+    </section>
+
+    <section class="panel" id="tab-cotizaciones">
+      <div class="card">
+        <h2>Comparativo — Victoria Eventos (Hacienda Rozo)</h2>
+        <table><thead><tr><th>Opción</th><th>Invitados</th><th>Valor</th><th>$/invitado</th></tr></thead><tbody id="cot-tabla"></tbody></table>
+        <div class="note">Vigencia habitual de estas cotizaciones: 30 días desde su emisión — confirmar precio antes de decidir.</div>
+      </div>
+      <div class="card">
+        <h2>Agregar nueva cotización</h2>
+        <div class="grid2">
+          <div><label>Proveedor / opción</label><input id="cot-nombre" placeholder="Ej: Finca El Encanto"></div>
+          <div><label>Invitados</label><input id="cot-inv" type="number"></div>
+          <div><label>Valor total (COP)</label><input id="cot-valor" type="number"></div>
+        </div>
+        <div class="row-actions"><button class="action" id="cot-add">Agregar</button></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="save-msg" id="save-msg"></div>
+</div>
+
+<script>
+// ---- Config de tu proyecto Supabase (llave pública, segura para exponer en el cliente) ----
+const SUPABASE_URL = 'https://dyhzujibxurnodcuqivw.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_VhzwxIdO5IViCSshWrVTNA_3jkSAYip';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let state = { config:{}, partidas:[], invitadosJulian:[], invitadosVictoria:[], cronograma:[], cotizaciones:[], pendientes:[] };
+
+function fmt(n){ return '$' + Math.round(n||0).toLocaleString('es-CO'); }
+function flash(msg){ const m=document.getElementById('save-msg'); m.textContent=msg; setTimeout(()=>m.textContent='',1200); }
+
+async function loadAll(){
+  const [{data:config}, {data:partidas}, {data:invitados}, {data:crono}, {data:cot}, {data:pend}] = await Promise.all([
+    sb.from('boda_config').select('*'),
+    sb.from('boda_presupuesto').select('*').order('created_at'),
+    sb.from('boda_invitados').select('*').order('created_at'),
+    sb.from('boda_cronograma').select('*').order('orden'),
+    sb.from('boda_cotizaciones').select('*').order('created_at'),
+    sb.from('boda_pendientes').select('*').order('created_at'),
+  ]);
+  state.config = Object.fromEntries((config||[]).map(c=>[c.key,c.value]));
+  state.partidas = partidas||[];
+  state.invitadosJulian = (invitados||[]).filter(g=>g.lado==='julian');
+  state.invitadosVictoria = (invitados||[]).filter(g=>g.lado==='victoria');
+  state.cronogramaFlat = crono||[];
+  state.cotizaciones = cot||[];
+  state.pendientes = pend||[];
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  renderAll();
+}
+
+function renderCountdown(){
+  const fecha = state.config.fecha_boda || '2027-08-14';
+  const wed = new Date(fecha + 'T12:00:00');
+  const diff = Math.ceil((wed - new Date()) / 86400000);
+  document.getElementById('cd-days').textContent = diff > 0 ? diff : 0;
+  document.getElementById('lugar-sub').textContent = (state.config.lugar || '') + ' · ' + fecha;
+}
+
+function computeBudget(){
+  const max = Number(state.config.presupuesto_max)||0;
+  const contratado = state.partidas.reduce((s,p)=>s+(Number(p.valor)||0),0);
+  const pagado = state.partidas.reduce((s,p)=>s+(Number(p.pagado)||0),0);
+  const reserva = max*0.05;
+  const saldo = max - contratado - reserva;
+  return {max, contratado, pagado, reserva, saldo};
+}
+
+function renderResumen(){
+  const b = computeBudget();
+  document.getElementById('r-presupuesto').textContent = fmt(b.max);
+  document.getElementById('r-contratado').textContent = fmt(b.contratado);
+  document.getElementById('r-pagado').textContent = fmt(b.pagado);
+  document.getElementById('r-saldo').textContent = fmt(b.saldo);
+  document.getElementById('r-saldo-wrap').className = 'stat ' + (b.saldo<0?'warn':'good');
+  document.getElementById('r-inv-julian').textContent = state.invitadosJulian.length;
+  document.getElementById('r-inv-victoria').textContent = state.invitadosVictoria.length;
+  const tbody = document.getElementById('r-pendientes'); tbody.innerHTML='';
+  state.pendientes.forEach(p=>{
+    const tr=document.createElement('tr'); tr.innerHTML='<td>'+p.texto+'</td>'; tbody.appendChild(tr);
+  });
+}
+
+function renderPresupuesto(){
+  document.getElementById('p-max').value = state.config.presupuesto_max || 0;
+  const tbody = document.getElementById('p-tabla'); tbody.innerHTML='';
+  state.partidas.forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input value="${p.item}" data-f="item" data-id="${p.id}"></td>
+      <td><select data-f="categoria" data-id="${p.id}">${['Indispensable','Importante','Deseable','Prescindible'].map(c=>`<option ${c===p.categoria?'selected':''}>${c}</option>`).join('')}</select></td>
+      <td><select data-f="estado" data-id="${p.id}">${['No iniciado','Por cotizar','Cotizado','En evaluación','Por decidir','Contratado','Anticipo pagado','Completado'].map(c=>`<option ${c===p.estado?'selected':''}>${c}</option>`).join('')}</select></td>
+      <td><input type="number" value="${p.valor}" data-f="valor" data-id="${p.id}"></td>
+      <td><input type="number" value="${p.pagado}" data-f="pagado" data-id="${p.id}"></td>
+      <td><button class="action ghost small" data-del-partida="${p.id}">✕</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('input,select').forEach(el=>{
+    el.addEventListener('change', async e=>{
+      const id=e.target.dataset.id, f=e.target.dataset.f;
+      const val = (f==='valor'||f==='pagado') ? Number(e.target.value) : e.target.value;
+      const p = state.partidas.find(x=>x.id===id); p[f]=val;
+      await sb.from('boda_presupuesto').update({[f]:val}).eq('id',id);
+      flash('Guardado.'); renderPresupuesto(); renderResumen();
+    });
+  });
+  tbody.querySelectorAll('[data-del-partida]').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const id = e.target.dataset.delPartida;
+      await sb.from('boda_presupuesto').delete().eq('id',id);
+      state.partidas = state.partidas.filter(x=>x.id!==id);
+      renderPresupuesto(); renderResumen();
+    });
+  });
+  const b = computeBudget();
+  document.getElementById('p-contratado').textContent = fmt(b.contratado);
+  document.getElementById('p-pagado').textContent = fmt(b.pagado);
+  document.getElementById('p-reserva').textContent = fmt(b.reserva);
+  document.getElementById('p-saldo').textContent = fmt(b.saldo);
+  document.getElementById('p-saldo-wrap').className = 'stat ' + (b.saldo<0?'warn':'good');
+}
+
+function renderGuestTable(list, tbodyId, lado){
+  const tbody = document.getElementById(tbodyId); tbody.innerHTML='';
+  list.forEach(g=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input value="${g.nombre}" data-f="nombre" data-id="${g.id}"></td>
+      <td><input value="${g.grupo||''}" data-f="grupo" data-id="${g.id}"></td>
+      <td><select data-f="prioridad" data-id="${g.id}">${['Esencial','Ampliada','Opcional','Espera'].map(c=>`<option ${c===g.prioridad?'selected':''}>${c}</option>`).join('')}</select></td>
+      <td><input type="checkbox" data-f="confirmado" data-id="${g.id}" ${g.confirmado?'checked':''}></td>
+      <td><button class="action ghost small" data-del-guest="${g.id}">✕</button></td>`;
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('input,select').forEach(el=>{
+    el.addEventListener('change', async e=>{
+      const id=e.target.dataset.id, f=e.target.dataset.f;
+      const val = f==='confirmado' ? e.target.checked : e.target.value;
+      const g = list.find(x=>x.id===id); g[f]=val;
+      await sb.from('boda_invitados').update({[f]:val}).eq('id',id);
+      flash('Guardado.'); renderResumen();
+      document.getElementById('i-jul-count').textContent = '('+state.invitadosJulian.length+' — meta 40-45)';
+      document.getElementById('i-vic-count').textContent = '('+state.invitadosVictoria.length+' — meta 40-45)';
+    });
+  });
+  tbody.querySelectorAll('[data-del-guest]').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const id = e.target.dataGuest || e.target.dataset.delGuest;
+      await sb.from('boda_invitados').delete().eq('id',id);
+      state.invitadosJulian = state.invitadosJulian.filter(x=>x.id!==id);
+      state.invitadosVictoria = state.invitadosVictoria.filter(x=>x.id!==id);
+      renderInvitados();
+    });
+  });
+}
+
+function renderInvitados(){
+  renderGuestTable(state.invitadosJulian,'i-julian','julian');
+  renderGuestTable(state.invitadosVictoria,'i-victoria','victoria');
+  document.getElementById('i-jul-count').textContent = '('+state.invitadosJulian.length+' — meta 40-45)';
+  document.getElementById('i-vic-count').textContent = '('+state.invitadosVictoria.length+' — meta 40-45)';
+  renderResumen();
+}
+
+function renderCronograma(){
+  const fases = {};
+  state.cronogramaFlat.forEach(t=>{ (fases[t.fase] = fases[t.fase]||[]).push(t); });
+  const wrap = document.getElementById('cronograma-fases'); wrap.innerHTML='';
+  Object.entries(fases).forEach(([fase,tareas])=>{
+    const div = document.createElement('div'); div.className='phase';
+    div.innerHTML = '<h3>'+fase+'</h3>' + tareas.map(t=>`
+      <div class="task ${t.done?'done':''}"><input type="checkbox" data-id="${t.id}" ${t.done?'checked':''}><span>${t.tarea}</span></div>`).join('');
+    wrap.appendChild(div);
+  });
+  wrap.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', async e=>{
+      const id = e.target.dataset.id;
+      const t = state.cronogramaFlat.find(x=>x.id===id); t.done = e.target.checked;
+      await sb.from('boda_cronograma').update({done:e.target.checked}).eq('id',id);
+      flash('Guardado.'); renderCronograma();
+    });
+  });
+}
+
+function renderCotizaciones(){
+  const tbody = document.getElementById('cot-tabla'); tbody.innerHTML='';
+  state.cotizaciones.forEach(c=>{
+    const perGuest = c.invitados ? c.valor/c.invitados : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${c.nombre}</td><td>${c.invitados}</td><td>${fmt(c.valor)}</td><td>${fmt(perGuest)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderAll(){ renderCountdown(); renderResumen(); renderPresupuesto(); renderInvitados(); renderCronograma(); renderCotizaciones(); }
+
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('p-max').addEventListener('change', async e=>{
+  const val = e.target.value;
+  state.config.presupuesto_max = val;
+  await sb.from('boda_config').upsert({key:'presupuesto_max', value:val});
+  flash('Guardado.'); renderPresupuesto(); renderResumen();
+});
+
+document.getElementById('p-add').addEventListener('click', async ()=>{
+  const {data} = await sb.from('boda_presupuesto').insert({item:'Nueva partida', categoria:'Deseable', estado:'No iniciado', valor:0, pagado:0}).select();
+  if(data) state.partidas.push(data[0]);
+  renderPresupuesto();
+});
+
+document.getElementById('i-add-julian').addEventListener('click', async ()=>{
+  const {data} = await sb.from('boda_invitados').insert({lado:'julian', nombre:'', grupo:'', prioridad:'Esencial', confirmado:false}).select();
+  if(data) state.invitadosJulian.push(data[0]);
+  renderInvitados();
+});
+document.getElementById('i-add-victoria').addEventListener('click', async ()=>{
+  const {data} = await sb.from('boda_invitados').insert({lado:'victoria', nombre:'', grupo:'', prioridad:'Esencial', confirmado:false}).select();
+  if(data) state.invitadosVictoria.push(data[0]);
+  renderInvitados();
+});
+
+document.getElementById('cot-add').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('cot-nombre').value || 'Sin nombre';
+  const invitados = Number(document.getElementById('cot-inv').value)||0;
+  const valor = Number(document.getElementById('cot-valor').value)||0;
+  const {data} = await sb.from('boda_cotizaciones').insert({nombre, invitados, valor}).select();
+  if(data) state.cotizaciones.push(data[0]);
+  document.getElementById('cot-nombre').value=''; document.getElementById('cot-inv').value=''; document.getElementById('cot-valor').value='';
+  renderCotizaciones();
+});
+
+loadAll();
+</script>
+</body>
+</html>
